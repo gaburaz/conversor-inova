@@ -308,11 +308,11 @@ async function loadFile(f){
     lines = [];
     for(let p=1;p<=pdf.numPages;p++){
       const tc = await (await pdf.getPage(p)).getTextContent();
-      lines.push(...groupLines(tc.items));
+      lines.push(...groupLines(tc.items).map(l => ({...l, p})));
     }
-    $("raw").textContent = lines.join("\n") || "(nenhum texto encontrado)";
+    $("raw").textContent = lines.map(l => l.t).join("\n") || "(nenhum texto encontrado)";
     isSample = false;
-    if(!lines.join("").trim()){ rows=[]; render(); setMsg("Não achei texto nesse PDF. Provavelmente é uma imagem escaneada.", "err"); return; }
+    if(!lines.map(l => l.t).join("").trim()){ rows=[]; render(); setMsg("Não achei texto nesse PDF. Provavelmente é uma imagem escaneada.", "err"); return; }
     detectYear();
     parse();
     $("resultado").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
@@ -339,13 +339,13 @@ function groupLines(items){
       if(end!==null){ const gap = p.x - end; out += gap > 12 ? "   " : (gap > 1 ? " " : ""); }
       out += p.s; end = p.x + p.w;
     }
-    return out.replace(/\s+$/,"");
+    return {t: out.replace(/\s+$/,""), y: r.y};
   });
 }
 
 function detectYear(){
   const counts = {};
-  for(const l of lines) for(const m of l.matchAll(/\b\d{2}\/\d{2}\/(\d{4})\b/g)) counts[m[1]]=(counts[m[1]]||0)+1;
+  for(const l of lines) for(const m of l.t.matchAll(/\b\d{2}\/\d{2}\/(\d{4})\b/g)) counts[m[1]]=(counts[m[1]]||0)+1;
   const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
   if(best) $("year").value = best[0];
 }
@@ -362,14 +362,37 @@ function toNumber(tok, suf){
   return neg ? -n : n;
 }
 
+const LETTERS = /[A-Za-zÀ-ÿ]/;
+const isTextOnly = l => l && l.t.trim() && !DATE_RE.test(l.t) && ![...l.t.matchAll(MONEY_RE)].length;
+
+// Alguns bancos (ex.: Bradesco) escrevem o nome do lançamento em duas linhas
+// e colocam data/documento/valor na linha do meio. Quando a linha do valor
+// não tem nenhuma letra, juntamos a linha de texto de cima e a de baixo nela.
+function mergeSplitRows(src){
+  const used = new Set(), extra = {};
+  src.forEach((l, i) => {
+    let rest = l.t.replace(DATE_RE, "");
+    const money = [...rest.matchAll(MONEY_RE)];
+    if(!money.length) return;
+    for(const m of money) rest = rest.replace(m[0], " ");
+    if(LETTERS.test(rest)) return;
+    const near = j => { const o = src[j]; return o && !used.has(j) && o.p === l.p && Math.abs(o.y - l.y) < 14 && isTextOnly(o); };
+    const parts = [];
+    if(near(i-1)){ parts.push(src[i-1].t); used.add(i-1); }
+    if(near(i+1)){ parts.push(src[i+1].t); used.add(i+1); }
+    if(parts.length) extra[i] = parts.join(" ");
+  });
+  return src.map((l, i) => used.has(i) ? null : {...l, extra: extra[i] || ""}).filter(Boolean);
+}
+
 function parse(){
   const yearDefault = parseInt($("year").value,10) || new Date().getFullYear();
   const pickLast = $("pick").value === "last";
   const skipSaldo = $("skipSaldo").checked, carry = $("carryDate").checked, join = $("joinCont").checked;
   const out = [];
   let lastDate = null, lastRow = null;
-  for(const raw of lines){
-    let line = raw.trim();
+  for(const L of mergeSplitRows(lines)){
+    let line = L.t.trim();
     if(!line) continue;
     let date = null;
     const dm = line.match(DATE_RE);
@@ -391,7 +414,7 @@ function parse(){
     const valor = toNumber(pick[1], pick[2]);
     let hist = line;
     for(const m of money) hist = hist.replace(m[0], " ");
-    hist = hist.replace(/R\$/g," ").replace(/\s{2,}/g," ").trim();
+    hist = (L.extra + " " + hist).replace(/R\$/g," ").replace(/\s{2,}/g," ").trim();
     if(skipSaldo && /\bsaldo\b|s\s?a\s?l\s?d\s?o/i.test(hist)){ lastRow = null; continue; }
     if(!hist && !date) continue;
     lastRow = {d:useDate.d, m:useDate.m, y:useDate.y, valor, hist};
