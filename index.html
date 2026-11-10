@@ -329,18 +329,23 @@ function groupLines(items){
     const x = it.transform[4], y = it.transform[5];
     let r = rowsY.find(r => Math.abs(r.y - y) < 3);
     if(!r){ r = {y, parts:[]}; rowsY.push(r); }
-    r.parts.push({x, w:it.width||0, s:it.str});
+    r.parts.push({x, w:it.width||0, s:it.str, fs: Math.abs(it.transform[3]) || it.height || 10});
   }
   rowsY.sort((a,b) => b.y - a.y);
   return rowsY.map(r => {
     r.parts.sort((a,b) => a.x - b.x);
-    let out = "", end = null;
-    for(const p of r.parts){
-      if(end!==null){ const gap = p.x - end; out += gap > 12 ? "   " : (gap > 1 ? " " : ""); }
-      out += p.s; end = p.x + p.w;
-    }
-    return {t: out.replace(/\s+$/,""), y: r.y};
+    return {t: joinParts(r.parts), y: r.y, parts: r.parts, fs: Math.max(...r.parts.map(p => p.fs))};
   });
+}
+
+// monta o texto da linha a partir dos pedaços, respeitando a distância entre eles
+function joinParts(parts){
+  let out = "", end = null;
+  for(const p of parts){
+    if(end!==null){ const gap = p.x - end; out += gap > 12 ? "   " : (gap > 1 ? " " : ""); }
+    out += p.s; end = Math.max(end ?? -Infinity, p.x + p.w);
+  }
+  return out.replace(/\s+$/,"");
 }
 
 function detectYear(){
@@ -365,24 +370,42 @@ function toNumber(tok, suf){
 const LETTERS = /[A-Za-zÀ-ÿ]/;
 const isTextOnly = l => l && l.t.trim() && !DATE_RE.test(l.t) && ![...l.t.matchAll(MONEY_RE)].length;
 
-// Alguns bancos (ex.: Bradesco) escrevem o nome do lançamento em duas linhas
-// e colocam data/documento/valor na linha do meio. Quando a linha do valor
-// não tem nenhuma letra, juntamos a linha de texto de cima e a de baixo nela.
+// Vários bancos quebram um texto longo (nome do lançamento, razão social) em
+// duas linhas: metade fica um pouco acima e metade um pouco abaixo da linha
+// que tem a data e o valor. Quando uma linha de valor tem, colada nela, uma
+// linha só de texto em cima e/ou embaixo, encaixamos esses pedaços na mesma
+// coluna em que eles aparecem no PDF (o de cima antes, o de baixo depois).
 function mergeSplitRows(src){
-  const used = new Set(), extra = {};
-  src.forEach((l, i) => {
-    let rest = l.t.replace(DATE_RE, "");
-    const money = [...rest.matchAll(MONEY_RE)];
-    if(!money.length) return;
-    for(const m of money) rest = rest.replace(m[0], " ");
-    if(LETTERS.test(rest)) return;
-    const near = j => { const o = src[j]; return o && !used.has(j) && o.p === l.p && Math.abs(o.y - l.y) < 14 && isTextOnly(o); };
-    const parts = [];
-    if(near(i-1)){ parts.push(src[i-1].t); used.add(i-1); }
-    if(near(i+1)){ parts.push(src[i+1].t); used.add(i+1); }
-    if(parts.length) extra[i] = parts.join(" ");
+  const hasMoney = l => l && l.parts && [...l.t.matchAll(MONEY_RE)].length > 0;
+  const attach = {};   // índice da linha de valor -> pedaços extras
+  const used = new Set();
+  src.forEach((o, j) => {
+    if(!isTextOnly(o) || !o.parts) return;
+    // candidatas: a linha de valor logo acima e a logo abaixo; fica com a mais próxima
+    let best = null;
+    for(const k of [j-1, j+1]){
+      const l = src[k];
+      if(!hasMoney(l) || l.p !== o.p) continue;
+      const dy = Math.abs(l.y - o.y);
+      if(dy < Math.max(l.fs, o.fs) * 1.1 && (!best || dy < best.dy)) best = {k, dy};
+    }
+    if(!best) return;
+    const ord = src[best.k].y < o.y ? 0 : 2;   // y maior = mais acima na página
+    (attach[best.k] = attach[best.k] || []).push(...o.parts.map(p => ({...p, ord})));
+    used.add(j);
   });
-  return src.map((l, i) => used.has(i) ? null : {...l, extra: extra[i] || ""}).filter(Boolean);
+  return src.map((l, i) => {
+    if(used.has(i)) return null;
+    if(!attach[i]) return {...l, extra: ""};
+    const tagged = [...l.parts.map(p => ({...p, ord:1})), ...attach[i]];
+    tagged.sort((a,b) => Math.abs(a.x - b.x) < 4 ? a.ord - b.ord || a.x - b.x : a.x - b.x);
+    let out = "", prev = null;
+    for(const p of tagged){
+      if(prev){ const gap = p.x - (prev.x + prev.w); out += (Math.abs(p.x - prev.x) < 4 || gap <= 12) ? " " : "   "; }
+      out += p.s; prev = p;
+    }
+    return {...l, t: out, extra: ""};
+  }).filter(Boolean);
 }
 
 function parse(){
