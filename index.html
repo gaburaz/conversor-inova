@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Converta extrato bancário em PDF para Excel no layout da conciliação contábil.">
+<title>Conversor de Extrato</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: site de conversor — barra de topo, faixa principal com a área de envio, resultado em formato de planilha, passos, vantagens e perguntas */
+:root{
+  --bg:#f6f8f7; --surface:#ffffff; --fg:#14211c; --muted:#5a6b64; --line:#dbe3df;
+  --brand:#0e7a4f; --brand-2:#0a5c3b; --brand-fg:#ffffff; --brand-soft:#e3f3ec;
+  --hero:#0b3d2a; --hero-fg:#eaf6f0; --hero-muted:#a9cdbd; --pdf:#d9483b;
+  --neg:#b4372b; --grid-head:#eef2f0; --blank:#f8faf9; --shadow:0 18px 50px -24px rgba(10,60,40,.35);
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Inter","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1714; --surface:#16211d; --fg:#e3ece8; --muted:#94a69e; --line:#26342f;
+  --brand:#2fbf86; --brand-2:#25a072; --brand-fg:#06130e; --brand-soft:#173a2d;
+  --hero:#0a2a1e; --hero-fg:#e6f4ee; --hero-muted:#8fbca9; --pdf:#ef6b5f;
+  --neg:#f08074; --grid-head:#1c2925; --blank:#131d1a; --shadow:0 18px 50px -24px rgba(0,0,0,.7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1714; --surface:#16211d; --fg:#e3ece8; --muted:#94a69e; --line:#26342f;
+  --brand:#2fbf86; --brand-2:#25a072; --brand-fg:#06130e; --brand-soft:#173a2d;
+  --hero:#0a2a1e; --hero-fg:#e6f4ee; --hero-muted:#8fbca9; --pdf:#ef6b5f;
+  --neg:#f08074; --grid-head:#1c2925; --blank:#131d1a; --shadow:0 18px 50px -24px rgba(0,0,0,.7); color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.in{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+a{color:inherit}
+
+/* topo */
+.top{background:var(--hero);color:var(--hero-fg)}
+.top .in{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:1.15rem;letter-spacing:-.01em}
+.logo svg{flex:none}
+.nav{display:flex;gap:18px;font-size:14px;color:var(--hero-muted)}
+.nav a{text-decoration:none}.nav a:hover{color:var(--hero-fg)}
+@media (max-width:560px){.nav{display:none}}
+
+/* faixa principal */
+.hero{background:var(--hero);color:var(--hero-fg);padding-block:28px 96px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:auto -10% -60% -10%;height:120%;background:radial-gradient(closest-side,rgba(47,191,134,.22),transparent);pointer-events:none}
+.hero .in{position:relative;z-index:1;text-align:center}
+.flow{display:inline-flex;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--f-mono);font-size:12px;color:var(--hero-muted)}
+.chip{padding:3px 9px;border-radius:5px;font-weight:500;color:#fff}
+.chip.pdf{background:var(--pdf)}.chip.xls{background:#1d8a57}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(2.1rem,6vw,3.6rem);line-height:1.02;letter-spacing:-.03em;margin:0 auto;max-width:16ch;text-wrap:balance}
+h1 em{font-style:normal;color:var(--brand)}
+.lead{color:var(--hero-muted);font-size:1.05rem;max-width:56ch;margin:14px auto 0}
+
+/* cartão de envio */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.uploader{margin:-64px auto 0;max-width:760px;position:relative;z-index:2;padding:22px}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:34px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+.btn-big{display:inline-flex;align-items:center;gap:10px;font:inherit;font-weight:600;font-size:1.05rem;background:var(--brand);color:var(--brand-fg);border:none;border-radius:10px;padding:14px 26px;cursor:pointer;box-shadow:0 8px 20px -10px var(--brand)}
+.btn-big:hover{background:var(--brand-2)}
+.drop p{margin:12px 0 0;color:var(--muted);font-size:13.5px}
+.drop .fname{font-weight:600;color:var(--fg)}
+.trust{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;margin-top:14px;font-size:12.5px;color:var(--muted)}
+.trust span::before{content:"✓ ";color:var(--brand);font-weight:700}
+.status{margin-top:12px;font-size:13.5px;color:var(--muted);text-align:center;min-height:1.3em}
+.status.err{color:var(--neg)}
+.status.ok{color:var(--brand)}
+
+/* resultado */
+section{padding-block:44px 0}
+.sec-head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px;margin-bottom:14px}
+h2{font-family:var(--f-display);font-weight:800;font-size:1.6rem;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--brand);font-weight:600;margin-bottom:4px}
+.tag{font-size:11px;text-transform:uppercase;letter-spacing:.06em;background:var(--brand-soft);color:var(--brand);padding:3px 8px;border-radius:5px;font-weight:600;vertical-align:middle;margin-left:8px}
+.result{padding:18px;display:flex;flex-direction:column;gap:14px}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sum{background:var(--blank);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.sum small{display:block;color:var(--muted);font-size:12px}
+.sum b{font-family:var(--f-mono);font-weight:500;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.sum.in b{color:var(--brand)}.sum.out b{color:var(--neg)}
+@media (max-width:520px){.summary{grid-template-columns:1fr}}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.actions .l,.actions .r{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit}
+.btn{font-size:14px;font-weight:500;border-radius:8px;padding:9px 15px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn:hover{border-color:var(--brand)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-fg);font-weight:600}
+.btn.primary:hover{background:var(--brand-2)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,.drop:focus-visible,td[contenteditable]:focus,summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+.opts{border:1px solid var(--line);border-radius:10px;padding:0 14px;background:var(--blank)}
+.opts summary{cursor:pointer;padding:11px 0;font-weight:600;font-size:14px}
+.opts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 22px;padding-bottom:14px}
+.opts label.ck{display:flex;gap:8px;align-items:flex-start;font-size:14px;cursor:pointer}
+.opts input[type=checkbox]{margin-top:3px;accent-color:var(--brand)}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.field select,.field input{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:7px 9px}
+
+.grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:60vh}
+table{border-collapse:collapse;width:100%;min-width:660px;font-size:13.5px;background:var(--surface)}
+thead th{position:sticky;top:0;z-index:1;background:var(--grid-head);font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:5px 9px;text-align:left}
+thead th small{display:block;font-family:var(--f-body);font-size:11px}
+td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:6px 9px;vertical-align:top}
+td.rn{font-family:var(--f-mono);font-size:11px;color:var(--muted);background:var(--grid-head);text-align:right;width:38px}
+td.date{font-family:var(--f-mono);white-space:nowrap;width:108px}
+td.blank{background:var(--blank);width:76px}
+td.val{font-family:var(--f-mono);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;width:124px}
+td.val.neg{color:var(--neg)}
+td.del{width:36px;text-align:center;padding:2px}
+td.del button{padding:2px 8px;font-size:15px;border:none;background:none;color:var(--muted);cursor:pointer}
+td.del button:hover{color:var(--neg)}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+details.raw{font-size:13px;color:var(--muted)}
+details.raw summary{cursor:pointer}
+details.raw pre{white-space:pre-wrap;font-family:var(--f-mono);font-size:12px;background:var(--blank);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:280px;overflow:auto;color:var(--fg)}
+
+/* passos e vantagens */
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.feats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:760px){.steps,.feats{grid-template-columns:1fr}}
+.step{padding:20px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.step .n{font-family:var(--f-display);font-weight:800;font-size:2rem;line-height:1;color:var(--brand)}
+.step h3,.feat h3{margin:0;font-size:1rem;font-weight:600}
+.step p,.feat p{margin:0;color:var(--muted);font-size:14px}
+.feat{padding:4px 0;display:flex;gap:12px}
+.feat .ic{flex:none;width:38px;height:38px;border-radius:10px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center}
+.cols{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cols span{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);background:var(--blank);padding:2px 8px;border-radius:5px}
+.cols b{color:var(--brand)}
+
+.faq{max-width:760px}
+.faq details{border-bottom:1px solid var(--line);padding:4px 0}
+.faq summary{cursor:pointer;font-weight:600;padding:10px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}
+.faq summary::after{content:"+";color:var(--brand);font-weight:700}
+.faq details[open] summary::after{content:"–"}
+.faq p{margin:0 0 12px;color:var(--muted);max-width:65ch}
+footer{margin-top:56px;border-top:1px solid var(--line)}
+footer .in{padding-block:22px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="in">
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="1" y="3" width="17" height="22" rx="3" fill="#d9483b"/><rect x="11" y="6" width="17" height="22" rx="3" fill="#1d8a57"/><path d="M15 12h9M15 16h9M15 20h9M19.5 10v16" stroke="#fff" stroke-width="1.4" opacity=".85"/></svg>
+      Extrato<span style="color:var(--brand)">Planilha</span>
+    </div>
+    <nav class="nav"><a href="#como">Como funciona</a><a href="#vantagens">Vantagens</a><a href="#duvidas">Dúvidas</a></nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="in">
+    <div class="flow"><span class="chip pdf">PDF</span>→<span class="chip xls">XLSX</span></div>
+    <h1>Extrato em PDF para <em>Excel</em>, já pronto para conciliar</h1>
+    <p class="lead">Envie o extrato bancário que o cliente mandou e baixe a planilha organizada: data, colunas de débito e crédito livres, valor e histórico. Sem ficar arrumando na mão.</p>
+  </div>
+</div>
+
+<div class="in">
+  <div class="card uploader">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar PDF do extrato">
+      <button class="btn-big" type="button" tabindex="-1">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+        Selecionar PDF
+      </button>
+      <p id="fileName">ou arraste o arquivo do extrato para cá</p>
+      <input type="file" id="file" accept="application/pdf,.pdf" hidden>
+    </div>
+    <div class="trust"><span>Grátis</span><span>Sem cadastro</span><span>O PDF não sai do seu computador</span></div>
+    <div class="status" id="msg"></div>
+  </div>
+</div>
+
+<main>
+  <section id="resultado">
+    <div class="in">
+      <div class="sec-head">
+        <div><div class="eyebrow">Resultado</div><h2>Prévia da planilha<span id="sampleTag" class="tag">Exemplo</span></h2></div>
+      </div>
+      <div class="card result">
+        <div class="summary">
+          <div class="sum"><small>Lançamentos</small><b id="sCount">0</b></div>
+          <div class="sum in"><small>Entradas</small><b id="sIn">0,00</b></div>
+          <div class="sum out"><small>Saídas</small><b id="sOut">0,00</b></div>
+        </div>
+        <div class="actions">
+          <p class="hint" id="hint">Isto é um exemplo. Envie um extrato para ver os seus lançamentos aqui.</p>
+          <div class="r">
+            <button class="btn" id="copyBtn">Copiar para o Excel</button>
+            <button class="btn primary" id="xlsxBtn">Baixar Excel</button>
+          </div>
+        </div>
+        <details class="opts">
+          <summary>Ajustes da conversão</summary>
+          <div class="opts-grid">
+            <div class="field"><label for="sign">Valor na coluna D</label>
+              <select id="sign"><option value="signed">Com sinal (saídas negativas)</option><option value="abs">Sempre positivo</option></select></div>
+            <div class="field"><label for="year">Ano (quando o extrato mostra só dia/mês)</label>
+              <input id="year" type="number" min="2000" max="2100"></div>
+            <div class="field"><label for="pick">Linha com valor e saldo</label>
+              <select id="pick"><option value="first">Usar o primeiro (valor)</option><option value="last">Usar o último</option></select></div>
+            <label class="ck"><input type="checkbox" id="skipSaldo" checked> Ignorar linhas de saldo</label>
+            <label class="ck"><input type="checkbox" id="carryDate" checked> Lançamento sem data usa a data de cima</label>
+            <label class="ck"><input type="checkbox" id="joinCont"> Juntar linhas de continuação ao histórico</label>
+            <label class="ck"><input type="checkbox" id="header" checked> Incluir cabeçalho na planilha</label>
+          </div>
+        </details>
+        <div class="grid-wrap">
+          <table>
+            <thead><tr><th></th><th>A<small>Data</small></th><th>B<small>Débito</small></th><th>C<small>Crédito</small></th><th>D<small>Valor</small></th><th>E<small>Histórico</small></th><th></th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <details class="raw">
+          <summary>Ver o texto lido do PDF</summary>
+          <pre id="raw">Nenhum PDF enviado ainda.</pre>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section id="como">
+    <div class="in">
+      <div class="sec-head"><div><div class="eyebrow">Como funciona</div><h2>Três passos e pronto</h2></div></div>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><h3>Envie o PDF</h3><p>Clique em Selecionar PDF ou arraste o extrato. Funciona com o PDF gerado pelo internet banking.</p></div>
+        <div class="step"><div class="n">2</div><h3>Confira a prévia</h3><p>Bata os totais de entradas e saídas com o extrato. Clique numa célula para corrigir ou no × para apagar a linha.</p></div>
+        <div class="step"><div class="n">3</div><h3>Baixe o Excel</h3><p>A planilha sai com data e valor como número de verdade, prontos para somar, filtrar e lançar.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="vantagens">
+    <div class="in">
+      <div class="sec-head"><div><div class="eyebrow">Vantagens</div><h2>Feito para a rotina contábil</h2></div></div>
+      <div class="feats">
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16M15 4v16"/></svg></div>
+          <div><h3>Layout padrão</h3><p>Sempre as mesmas colunas, com débito e crédito livres para a classificação.</p>
+          <div class="cols"><span><b>A</b> Data</span><span><b>B</b> Débito</span><span><b>C</b> Crédito</span><span><b>D</b> Valor</span><span><b>E</b> Histórico</span></div></div></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <div><h3>Sigilo do cliente</h3><p>A leitura acontece no seu navegador. O extrato não é enviado para nenhum servidor.</p></div></div>
+        <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/></svg></div>
+          <div><h3>Ajustável por banco</h3><p>Ignora saldos, repete a data do dia e escolhe o valor certo quando a linha também mostra o saldo.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="duvidas">
+    <div class="in faq">
+      <div class="sec-head"><div><div class="eyebrow">Dúvidas</div><h2>Perguntas frequentes</h2></div></div>
+      <details><summary>Funciona com qualquer banco?</summary><p>Funciona com extratos em PDF que tenham texto selecionável, que é o caso do PDF baixado do internet banking. Cada banco organiza a página de um jeito, então confira a prévia e use os ajustes da conversão se algo vier trocado.</p></details>
+      <details><summary>E se o PDF for uma foto ou digitalização?</summary><p>Aí não dá para ler, porque o arquivo é só uma imagem. Peça ao cliente o PDF original exportado pelo banco.</p></details>
+      <details><summary>Por que as colunas B e C ficam em branco?</summary><p>Elas ficam reservadas para a conta de débito e a conta de crédito, que são preenchidas na classificação dos lançamentos.</p></details>
+      <details><summary>O extrato fica salvo em algum lugar?</summary><p>Não. O arquivo é lido pelo próprio navegador e nada é guardado depois que você fecha a página.</p></details>
+      <details><summary>O PDF tem senha. E agora?</summary><p>Abra o PDF com a senha, use Imprimir e salve como PDF. O novo arquivo sai sem senha e pode ser enviado aqui.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer><div class="in"><span>ExtratoPlanilha · conversor de extrato bancário para Excel</span><span>Confira sempre os totais com o extrato original antes de importar.</span></div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const MONTHS = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+let lines = [], rows = [], isSample = true, srcName = "extrato";
+$("year").value = new Date().getFullYear();
+
+rows = [
+  {d:3,m:11,y:2026,valor:-1250.00,hist:"PIX ENVIADO FORNECEDOR ABC LTDA"},
+  {d:4,m:11,y:2026,valor:8430.50,hist:"TED RECEBIDA CLIENTE XYZ"},
+  {d:5,m:11,y:2026,valor:-89.90,hist:"TARIFA PACOTE SERVICOS"},
+  {d:7,m:11,y:2026,valor:-3120.47,hist:"PAGTO BOLETO DAS"},
+  {d:7,m:11,y:2026,valor:560.00,hist:"PIX RECEBIDO JOAO SILVA"}
+];
+render();
+
+const drop = $("drop"), fileIn = $("file");
+drop.addEventListener("click", () => fileIn.click());
+drop.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){e.preventDefault();fileIn.click();} });
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+fileIn.addEventListener("change", () => { if(fileIn.files[0]) loadFile(fileIn.files[0]); fileIn.value=""; });
+
+async function loadFile(f){
+  if(!/\.pdf$/i.test(f.name) && f.type!=="application/pdf"){ setMsg("Esse arquivo não é PDF. Escolha o extrato em PDF.", "err"); return; }
+  if(!window.pdfjsLib){ setMsg("O leitor de PDF não carregou. Recarregue a página e tente de novo.", "err"); return; }
+  srcName = f.name.replace(/\.pdf$/i,"");
+  $("fileName").innerHTML = ""; const s=document.createElement("span"); s.className="fname"; s.textContent=f.name; $("fileName").append(s, " · clique para trocar");
+  setMsg("Lendo o PDF…");
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf = await pdfjsLib.getDocument({data: await f.arrayBuffer(), isEvalSupported:false}).promise;
+    lines = [];
+    for(let p=1;p<=pdf.numPages;p++){
+      const tc = await (await pdf.getPage(p)).getTextContent();
+      lines.push(...groupLines(tc.items));
+    }
+    $("raw").textContent = lines.join("\n") || "(nenhum texto encontrado)";
+    isSample = false;
+    if(!lines.join("").trim()){ rows=[]; render(); setMsg("Não achei texto nesse PDF. Provavelmente é uma imagem escaneada.", "err"); return; }
+    detectYear();
+    parse();
+    $("resultado").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  }catch(err){
+    console.error(err);
+    setMsg("Não consegui abrir esse PDF. Se tiver senha, imprima como PDF sem senha e envie de novo.", "err");
+  }
+}
+
+function groupLines(items){
+  const rowsY = [];
+  for(const it of items){
+    if(!it.str || !it.str.trim()) continue;
+    const x = it.transform[4], y = it.transform[5];
+    let r = rowsY.find(r => Math.abs(r.y - y) < 3);
+    if(!r){ r = {y, parts:[]}; rowsY.push(r); }
+    r.parts.push({x, w:it.width||0, s:it.str});
+  }
+  rowsY.sort((a,b) => b.y - a.y);
+  return rowsY.map(r => {
+    r.parts.sort((a,b) => a.x - b.x);
+    let out = "", end = null;
+    for(const p of r.parts){
+      if(end!==null){ const gap = p.x - end; out += gap > 12 ? "   " : (gap > 1 ? " " : ""); }
+      out += p.s; end = p.x + p.w;
+    }
+    return out.replace(/\s+$/,"");
+  });
+}
+
+function detectYear(){
+  const counts = {};
+  for(const l of lines) for(const m of l.matchAll(/\b\d{2}\/\d{2}\/(\d{4})\b/g)) counts[m[1]]=(counts[m[1]]||0)+1;
+  const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  if(best) $("year").value = best[0];
+}
+
+const DATE_RE = /^\s*(\d{1,2})[\/.-](\d{1,2}|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)(?:[\/.-](\d{2,4}))?\b/i;
+const MONEY_RE = /(?:R\$\s*)?(\(?-?\s?\d{1,3}(?:\.\d{3})*,\d{2}\)?)(\s?-|\s?[DC](?![A-Za-z]))?/g;
+
+function toNumber(tok, suf){
+  let neg = false, s = tok.replace(/\s/g,"");
+  if(s.startsWith("(") && s.endsWith(")")){ neg=true; s=s.slice(1,-1); }
+  if(s.startsWith("-")){ neg=true; s=s.slice(1); }
+  if(suf){ const t=suf.trim().toUpperCase(); if(t==="-"||t==="D") neg=true; }
+  const n = parseFloat(s.replace(/\./g,"").replace(",","."));
+  return neg ? -n : n;
+}
+
+function parse(){
+  const yearDefault = parseInt($("year").value,10) || new Date().getFullYear();
+  const pickLast = $("pick").value === "last";
+  const skipSaldo = $("skipSaldo").checked, carry = $("carryDate").checked, join = $("joinCont").checked;
+  const out = [];
+  let lastDate = null, lastRow = null;
+  for(const raw of lines){
+    let line = raw.trim();
+    if(!line) continue;
+    let date = null;
+    const dm = line.match(DATE_RE);
+    if(dm){
+      const d = +dm[1], m = isNaN(+dm[2]) ? MONTHS[dm[2].toLowerCase()] : +dm[2];
+      let y = dm[3] ? +dm[3] : yearDefault; if(y < 100) y += 2000;
+      if(d>=1 && d<=31 && m>=1 && m<=12){ date = {d,m,y}; line = line.slice(dm[0].length); }
+    }
+    const money = [...line.matchAll(MONEY_RE)];
+    if(!money.length){
+      if(date) lastDate = date;
+      else if(join && lastRow && line.length < 80 && !/p[aá]gina|saldo|total/i.test(line)) lastRow.hist += " " + line.replace(/\s{2,}/g," ");
+      continue;
+    }
+    if(date) lastDate = date;
+    const useDate = date || (carry ? lastDate : null);
+    if(!useDate){ lastRow = null; continue; }
+    const pick = pickLast ? money[money.length-1] : money[0];
+    const valor = toNumber(pick[1], pick[2]);
+    let hist = line;
+    for(const m of money) hist = hist.replace(m[0], " ");
+    hist = hist.replace(/R\$/g," ").replace(/\s{2,}/g," ").trim();
+    if(skipSaldo && /\bsaldo\b|s\s?a\s?l\s?d\s?o/i.test(hist)){ lastRow = null; continue; }
+    if(!hist && !date) continue;
+    lastRow = {d:useDate.d, m:useDate.m, y:useDate.y, valor, hist};
+    out.push(lastRow);
+  }
+  rows = out;
+  render();
+  if(rows.length) setMsg(`Pronto! ${rows.length} lançamentos encontrados. Confira a prévia e baixe o Excel.`, "ok");
+  else setMsg("Não encontrei lançamentos. Abra \"Ajustes da conversão\" ou veja o texto lido do PDF.", "err");
+}
+
+["sign","skipSaldo","carryDate","joinCont","pick"].forEach(id => $(id).addEventListener("change", () => { isSample ? render() : parse(); }));
+$("year").addEventListener("change", () => { if(!isSample) parse(); });
+
+const fmt = n => n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const pad = n => String(n).padStart(2,"0");
+const outVal = v => $("sign").value==="abs" ? Math.abs(v) : v;
+
+function render(){
+  const tb = $("tbody");
+  tb.textContent = "";
+  $("sampleTag").hidden = !isSample;
+  $("hint").textContent = isSample ? "Isto é um exemplo. Envie um extrato para ver os seus lançamentos aqui." : "Clique numa célula para corrigir. Use o × para apagar uma linha.";
+  if(!rows.length){
+    const tr = document.createElement("tr"), td = document.createElement("td");
+    td.colSpan = 7; td.className="empty"; td.textContent = "Nenhum lançamento para mostrar."; tr.appendChild(td); tb.appendChild(tr);
+  }
+  rows.forEach((r,i) => {
+    const tr = document.createElement("tr"), v = outVal(r.valor);
+    tr.innerHTML = `<td class="rn">${i+1}</td><td class="date" contenteditable="true" data-k="date"></td><td class="blank"></td><td class="blank"></td><td class="val ${v<0?"neg":""}" contenteditable="true" data-k="valor"></td><td contenteditable="true" data-k="hist"></td><td class="del"><button title="Apagar linha" aria-label="Apagar linha ${i+1}">×</button></td>`;
+    tr.querySelector('[data-k="date"]').textContent = `${pad(r.d)}/${pad(r.m)}/${r.y}`;
+    tr.querySelector('[data-k="valor"]').textContent = fmt(v);
+    tr.querySelector('[data-k="hist"]').textContent = r.hist;
+    tr.querySelector("button").addEventListener("click", () => { rows.splice(i,1); render(); });
+    tr.querySelectorAll("[contenteditable]").forEach(td => td.addEventListener("blur", () => editCell(i, td)));
+    tb.appendChild(tr);
+  });
+  let ins=0, outs=0;
+  rows.forEach(r => r.valor>=0 ? ins+=r.valor : outs+=r.valor);
+  $("sCount").textContent = rows.length;
+  $("sIn").textContent = fmt(ins);
+  $("sOut").textContent = fmt(Math.abs(outs));
+  $("xlsxBtn").disabled = $("copyBtn").disabled = !rows.length;
+}
+
+function editCell(i, td){
+  const r = rows[i]; if(!r) return;
+  const t = td.textContent.trim();
+  if(td.dataset.k==="hist") r.hist = t;
+  else if(td.dataset.k==="date"){
+    const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if(m){ r.d=+m[1]; r.m=+m[2]; r.y=+m[3]<100?+m[3]+2000:+m[3]; }
+  } else {
+    const s = t.replace(/\s|R\$/g,"");
+    const n = /,/.test(s) ? parseFloat(s.replace(/\./g,"").replace(",",".")) : parseFloat(s);
+    if(!isNaN(n)) r.valor = ($("sign").value==="abs" && r.valor<0) ? -Math.abs(n) : n;
+  }
+  render();
+}
+
+const serial = r => (Date.UTC(r.y, r.m-1, r.d) - Date.UTC(1899,11,30)) / 86400000;
+
+function buildXlsx(){
+  const ws = {}; let R = 0;
+  const set = (c, row, cell) => { ws[XLSX.utils.encode_cell({c, r:row})] = cell; };
+  if($("header").checked){ ["Data","Débito","Crédito","Valor","Histórico"].forEach((h,c) => set(c, R, {t:"s", v:h})); R++; }
+  rows.forEach(r => {
+    set(0, R, {t:"n", v:serial(r), z:"dd/mm/yyyy"});
+    set(3, R, {t:"n", v:Math.round(outVal(r.valor)*100)/100, z:"#,##0.00"});
+    set(4, R, {t:"s", v:r.hist});
+    R++;
+  });
+  ws["!ref"] = XLSX.utils.encode_range({s:{c:0,r:0}, e:{c:4, r:Math.max(R-1,0)}});
+  ws["!cols"] = [{wch:12},{wch:12},{wch:12},{wch:14},{wch:60}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Extrato");
+  return XLSX.write(wb, {bookType:"xlsx", type:"array"});
+}
+
+// no site comum baixa direto; dentro do Claude usa a confirmação de download
+async function saveFile(data, name){
+  const dl = window.claude ? await window.claude.use("downloads") : null;
+  if(dl){ await dl.save({filename:name, data}); return; }
+  const blob = new Blob([data], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+$("xlsxBtn").addEventListener("click", async () => {
+  if(!window.XLSX){ setMsg("O gerador de Excel não carregou. Recarregue a página.", "err"); return; }
+  try{ await saveFile(buildXlsx(), `${srcName} - convertido.xlsx`); setMsg("Planilha baixada. Confira na pasta Downloads.", "ok"); }
+  catch(e){
+    if(e && e.code==="declined") setMsg("Download cancelado.");
+    else setMsg("Não deu para baixar aqui. Use \"Copiar para o Excel\" e cole na célula A1.", "err");
+  }
+});
+
+$("copyBtn").addEventListener("click", async () => {
+  const head = $("header").checked ? "Data\tDébito\tCrédito\tValor\tHistórico\n" : "";
+  const tsv = head + rows.map(r => `${pad(r.d)}/${pad(r.m)}/${r.y}\t\t\t${fmt(outVal(r.valor))}\t${r.hist.replace(/\t/g," ")}`).join("\n");
+  try{ await navigator.clipboard.writeText(tsv); setMsg("Copiado. No Excel, clique na célula A1 e cole (Ctrl+V).", "ok"); }
+  catch{ $("raw").textContent = tsv; $("raw").parentElement.open = true; setMsg("Não consegui copiar sozinho. Selecione o conteúdo em \"Ver o texto lido do PDF\" e copie.", "err"); }
+});
+
+function setMsg(t, kind){ const m=$("msg"); m.textContent=t; m.className="status"+(kind?" "+kind:""); }
+})();
+</script>
+
+</body>
+</html>
