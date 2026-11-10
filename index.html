@@ -283,10 +283,13 @@ rows = [
   {d:7,m:11,y:2026,valor:-3120.47,hist:"PAGTO BOLETO DAS"},
   {d:7,m:11,y:2026,valor:560.00,hist:"PIX RECEBIDO JOAO SILVA"}
 ];
-render();
 
 const drop = $("drop"), fileIn = $("file");
-drop.addEventListener("click", () => fileIn.click());
+drop.addEventListener("click", e => { if(e.target !== fileIn) fileIn.click(); });
+fileIn.addEventListener("click", e => e.stopPropagation());
+// evita que o navegador abra o PDF se o arquivo for solto fora da área
+["dragover","drop"].forEach(t => document.addEventListener(t, e => e.preventDefault()));
+document.addEventListener("drop", e => { if(!drop.contains(e.target)){ const f=e.dataTransfer && e.dataTransfer.files[0]; if(f) loadFile(f); } });
 drop.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){e.preventDefault();fileIn.click();} });
 drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
 drop.addEventListener("dragleave", () => drop.classList.remove("over"));
@@ -494,6 +497,8 @@ $("copyBtn").addEventListener("click", async () => {
   try{ await navigator.clipboard.writeText(tsv); setMsg("Copiado. No Excel, clique na célula A1 e cole (Ctrl+V).", "ok"); }
   catch{ $("raw").textContent = tsv; $("raw").parentElement.open = true; setMsg("Não consegui copiar sozinho. Selecione o conteúdo em \"Ver o texto lido do PDF\" e copie.", "err"); }
 });
+
+render();
 
 function setMsg(t, kind){ const m=$("msg"); m.textContent=t; m.className="status"+(kind?" "+kind:""); }
 })();
