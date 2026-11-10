@@ -62,6 +62,10 @@ h1 em{font-style:normal;color:var(--brand)}
 .btn-big:hover{background:var(--brand-2)}
 .drop p{margin:12px 0 0;color:var(--muted);font-size:13.5px}
 .drop .fname{font-weight:600;color:var(--fg)}
+.bank{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;margin-top:14px;font-size:14px;color:var(--muted)}
+.bank select{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0;max-width:100%}
+.modelo{font-size:13px;color:var(--muted);margin-top:4px}
+.modelo b{color:var(--fg);font-weight:600}
 .trust{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px;margin-top:14px;font-size:12.5px;color:var(--muted)}
 .trust span::before{content:"✓ ";color:var(--brand);font-weight:700}
 .status{margin-top:12px;font-size:13.5px;color:var(--muted);text-align:center;min-height:1.3em}
@@ -173,6 +177,10 @@ footer .in{padding-block:22px;font-size:13px;color:var(--muted);display:flex;fle
       <p id="fileName">ou arraste o arquivo do extrato para cá</p>
       <input type="file" id="file" accept="application/pdf,.pdf" hidden>
     </div>
+    <div class="bank">
+      <label for="banco">Banco do extrato</label>
+      <select id="banco"><option value="auto">Automático (recomendado)</option><option value="generico">Outro banco (modo genérico)</option></select>
+    </div>
     <div class="trust"><span>Grátis</span><span>Sem cadastro</span><span>O PDF não sai do seu computador</span></div>
     <div class="status" id="msg"></div>
   </div>
@@ -182,7 +190,7 @@ footer .in{padding-block:22px;font-size:13px;color:var(--muted);display:flex;fle
   <section id="resultado">
     <div class="in">
       <div class="sec-head">
-        <div><div class="eyebrow">Resultado</div><h2>Prévia da planilha<span id="sampleTag" class="tag">Exemplo</span></h2></div>
+        <div><div class="eyebrow">Resultado</div><h2>Prévia da planilha<span id="sampleTag" class="tag">Exemplo</span></h2><div class="modelo" id="modeloInfo" hidden>Modelo usado: <b id="modeloNome"></b></div></div>
       </div>
       <div class="card result">
         <div class="summary">
@@ -199,6 +207,7 @@ footer .in{padding-block:22px;font-size:13px;color:var(--muted);display:flex;fle
         </div>
         <details class="opts">
           <summary>Ajustes da conversão</summary>
+          <p class="hint" style="margin:0 0 10px">As opções de ano, saldo, data e linhas de continuação valem só para o modo genérico. Os modelos de banco já sabem tratar isso.</p>
           <div class="opts-grid">
             <div class="field"><label for="sign">Valor na coluna D</label>
               <select id="sign"><option value="signed">Com sinal (saídas negativas)</option><option value="abs">Sempre positivo</option></select></div>
@@ -247,7 +256,7 @@ footer .in{padding-block:22px;font-size:13px;color:var(--muted);display:flex;fle
         <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
           <div><h3>Sigilo do cliente</h3><p>A leitura acontece no seu navegador. O extrato não é enviado para nenhum servidor.</p></div></div>
         <div class="feat"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/></svg></div>
-          <div><h3>Ajustável por banco</h3><p>Ignora saldos, repete a data do dia e escolhe o valor certo quando a linha também mostra o saldo.</p></div></div>
+          <div><h3>Um modelo por banco</h3><p>Cada banco tem sua regra: o histórico traz a razão social, sem número de agência, conta ou documento.</p></div></div>
       </div>
     </div>
   </section>
@@ -255,7 +264,7 @@ footer .in{padding-block:22px;font-size:13px;color:var(--muted);display:flex;fle
   <section id="duvidas">
     <div class="in faq">
       <div class="sec-head"><div><div class="eyebrow">Dúvidas</div><h2>Perguntas frequentes</h2></div></div>
-      <details><summary>Funciona com qualquer banco?</summary><p>Funciona com extratos em PDF que tenham texto selecionável, que é o caso do PDF baixado do internet banking. Cada banco organiza a página de um jeito, então confira a prévia e use os ajustes da conversão se algo vier trocado.</p></details>
+      <details><summary>Quais bancos ele reconhece?</summary><p>Banco do Brasil, Bradesco, Caixa, Itaú, Inter, Nubank, Stone, Mercado Pago e XP. No modo Automático o site identifica o banco sozinho. Para outros bancos ele usa o modo genérico; confira a prévia e use os ajustes se algo vier trocado.</p></details>
       <details><summary>E se o PDF for uma foto ou digitalização?</summary><p>Aí não dá para ler, porque o arquivo é só uma imagem. Peça ao cliente o PDF original exportado pelo banco.</p></details>
       <details><summary>Por que as colunas B e C ficam em branco?</summary><p>Elas ficam reservadas para a conta de débito e a conta de crédito, que são preenchidas na classificação dos lançamentos.</p></details>
       <details><summary>O extrato fica salvo em algum lugar?</summary><p>Não. O arquivo é lido pelo próprio navegador e nada é guardado depois que você fecha a página.</p></details>
@@ -408,7 +417,219 @@ function mergeSplitRows(src){
   }).filter(Boolean);
 }
 
-function parse(){
+/* ===== MOTOR DE MODELOS POR BANCO ===== */
+// Cada modelo diz onde ficam as colunas do extrato daquele banco (posição x na página),
+// de onde vem a data e o sinal do valor, e onde fica o texto complementar (razão social).
+
+const MESES = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12,
+  janeiro:1,fevereiro:2,"março":3,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+
+// junta números picados ("R $ 39 . 711 , 47" -> "R$ 39.711,47", "16 / 01 / 2026" -> "16/01/2026")
+function norm(t){
+  return t.replace(/(\d)\s*([.,\/])\s*(?=\d)/g, "$1$2")
+          .replace(/R\s*\$/g, "R$").replace(/-\s+R\$/g, "-R$").replace(/\s+/g, " ").trim();
+}
+const MONEY2 = /(-)?\s*(?:R\$\s*)?(-)?\s*(\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?)(\s?-(?!\s*\d)|\s?[DC](?![A-Za-zÀ-ÿ]))?/;
+function readMoney(t){
+  const m = norm(t).match(MONEY2);
+  if(!m) return null;
+  let s = m[3], neg = !!(m[1] || m[2]);
+  if(s.startsWith("(")){ neg = true; s = s.replace(/[()]/g, ""); }
+  const suf = (m[4] || "").trim().toUpperCase();
+  if(suf === "-" || suf === "D") neg = true;
+  const n = parseFloat(s.replace(/\./g, "").replace(",", "."));
+  return {n: neg ? -n : n, hasSign: !!(m[1] || m[2] || suf)};
+}
+function readDate(t){
+  t = norm(t);
+  let m = t.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
+  if(m){ let y = +m[3]; if(y < 100) y += 2000; if(+m[2] >= 1 && +m[2] <= 12) return {d:+m[1], m:+m[2], y}; }
+  return null;
+}
+const inR = (x, r) => r && x >= r[0] && x < r[1];
+const partsIn = (L, r) => L.parts.filter(p => inR(p.x, r));
+const textIn = (L, r) => joinParts(partsIn(L, r));
+// quebra cada pedaço em palavras com a posição estimada de cada uma
+// (o leitor às vezes junta duas colunas num pedaço só, ex.: "48.046.044/0001-89 7.577,79")
+function words(L){
+  const out = [];
+  for(const p of L.parts){
+    const len = p.s.length || 1, cw = (p.w || len * 4) / len;
+    const re = /\S+/g; let m;
+    while((m = re.exec(p.s))) out.push({x: p.x + m.index * cw, w: m[0].length * cw, s: m[0]});
+  }
+  return out;
+}
+const wordsIn = (L, r) => joinParts(words(L).filter(p => inR(p.x, r)));
+
+const MODELOS = [
+  {
+    id: "nubank", nome: "Nubank",
+    detect: t => /Nu Pagamentos|nubank\.com\.br/i.test(t),
+    valueX: [470, 570], histCols: [[110, 255], [255, 470]], cont: "below", contX: [255, 268],
+    header(T, st){
+      const m = T.match(/^(\d{1,2}) (JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ) (\d{4})/i);
+      if(m) st.date = {d:+m[1], m:MESES[m[2].toLowerCase()], y:+m[3]};
+      if(/Total de entradas/i.test(T)){ st.sign = 1; return "skip"; }
+      if(/Total de sa[ií]das/i.test(T)){ st.sign = -1; return "skip"; }
+      if(/Saldo (do dia|inicial|final)/i.test(T)) return "skip";
+    },
+    signFrom: "state",
+    clean: h => h.replace(/\s+-\s+(?:[•\d]{2,3}[.\s•]|•).*$/, "").replace(/\b\d{2}\.\d{3}\.\d{3}\s+/, "")
+  },
+  {
+    id: "inter", nome: "Banco Inter",
+    detect: t => /Banco Inter/i.test(t) && /Saldo por transa/i.test(t),
+    valueX: [380, 480], histCols: [[38, 380]], cont: "below", contX: [40, 50],
+    skip: /^Fale com a gente|^SAC:/i,
+    header(T, st){
+      const m = T.match(/^(\d{1,2}) de ([A-Za-zçÇ]+) de (\d{4})/i);
+      if(m && MESES[m[2].toLowerCase()]){ st.date = {d:+m[1], m:MESES[m[2].toLowerCase()], y:+m[3]}; return "skip"; }
+    },
+    clean: h => h.replace(/"\s*(?:Cp\s*:\s*\d+\s*-\s*|\d+\s+)+/g, '"').replace(/:\s*"/, " ").replace(/"/g, "").replace(/\s\d{11,14}$/, "").replace(/\s{2,}/g, " ")
+  },
+  {
+    id: "xp", nome: "XP Investimentos",
+    detect: t => /XP INVESTIMENTOS/i.test(t),
+    dateX: [30, 110], valueX: [400, 495], histCols: [[195, 400]], cont: "around", contX: [195, 205], near: 10,
+    stop: /Lan[çc]amentos futuros/i,
+    clean: h => h.replace(/\s+-\s*$/, "")
+  },
+  {
+    id: "mercadopago", nome: "Mercado Pago",
+    detect: t => /DETALHE DOS MOVIMENTOS/i.test(t) && /ID da opera/i.test(t),
+    dateX: [35, 85], valueX: [262, 355], histCols: [[85, 195]], cont: "around", contX: [85, 95], near: 14
+  },
+  {
+    id: "stone", nome: "Stone",
+    detect: t => /Stone Institui/i.test(t),
+    dateX: [20, 80], tipoX: [80, 138], valueX: [290, 400], histCols: [[138, 290], [470, 600]],
+    cont: "around", contX: [[138, 148], [472, 482]], near: 20, signFrom: "tipo",
+    clean: h => h.replace(/\s*\|\s*/g, " ").replace(/\s*Ag[êe]ncia\s+\d+\s+Conta\s+[\d-]+/gi, "")
+  },
+  {
+    id: "caixa", nome: "Caixa Econômica",
+    detect: t => /CAIXA/.test(t) && /Nr\. Doc\./.test(t),
+    dateX: [35, 95], valueX: [360, 480], histCols: [[160, 360]], cont: "none",
+    skip: /SALDO (DIA|ANTERIOR)/i
+  },
+  {
+    id: "bb", nome: "Banco do Brasil",
+    detect: t => /Dt\. balancete/i.test(t),
+    dateX: [60, 115], valueX: [370, 505], histCols: [[220, 378]], cont: "below", contX: [246, 258],
+    skip: /Saldo Anterior|S A L D O/i, stop: /S A L D O/,
+    clean: h => h.replace(/^\d{5}\s+\d{3}\s+/, "").replace(/\b\d{2}\/\d{2} \d{2}:\d{2} \d{11,14}\s*/, "")
+  },
+  {
+    id: "bradesco", nome: "Bradesco",
+    detect: t => /Extrato Mensal \/ Por Per/i.test(t) || (/Dcto\./.test(t) && /Total Dispon/.test(t)),
+    dateX: [35, 95], valueX: [330, 510], histCols: [[95, 262]], cont: "around", contX: [95, 112], near: 8,
+    carryDate: true, skip: /SALDO ANTERIOR|^Total\b/i, stop: /[ÚU]ltimos Lan[çc]amentos/i,
+    clean: h => h.replace(/\s\d{2}\/\d{2}$/, "")
+  },
+  {
+    // Itaú: as colunas são achadas pelo cabeçalho "Lançamentos / Razão Social / CNPJ/CPF / Valor / Saldo"
+    id: "itau", nome: "Itaú (com razão social)",
+    detect: t => /Raz.{1,2}o Social/i.test(t) && /CNPJ\/CPF/i.test(t),
+    dynamic(lines){
+      const h = lines.find(L => /Lan.{1,2}amentos/i.test(L.t) && /Raz.{1,2}o Social/i.test(L.t));
+      if(!h) return null;
+      const xOf = re => { const p = h.parts.find(p => re.test(p.s)); return p ? p.x : null; };
+      const xd = xOf(/^Data/i), xl = xOf(/Lan.{1,2}amento/i), xr = xOf(/Raz.{1,2}o/i), xc = xOf(/CNPJ/i), xv = xOf(/Valor/i), xs = xOf(/Saldo/i);
+      if([xl, xr, xc].some(v => v == null)) return null;
+      const fimValor = (xs != null && xv != null && xs > xv) ? xs - 4 : 9999;   // se "Valor" e "Saldo" vierem juntos, o saldo é o 2º número
+      return {
+        dateX: [(xd ?? xl - 80) - 10, xl - 4], valueX: [xc + 30, fimValor],
+        histCols: [[xl - 4, xr - 4], [xr - 4, xc - 4]], cont: "around", contX: [[xl - 4, xl + 6], [xr - 4, xr + 6]], near: 10,
+        carryDate: true, skip: /SALDO/i
+      };
+    }
+  }
+];
+
+function detectModel(lines){
+  const t = lines.slice(0, 400).map(L => L.t).join("\n");
+  return MODELOS.find(M => M.detect(t)) || null;
+}
+
+function startsAt(L, contX){
+  if(!L.parts.length) return false;
+  const x = L.parts[0].x;
+  const list = Array.isArray(contX[0]) ? contX : [contX];
+  return list.some(r => x >= r[0] && x < r[1]);
+}
+
+function runModel(M0, lines){
+  const M = M0.dynamic ? {...M0, ...(M0.dynamic(lines) || {})} : M0;
+  if(!M.valueX) return null;
+  const st = {date: null, sign: 1};
+  const anchors = [], conts = [];
+  let last = null;
+  for(let i = 0; i < lines.length; i++){
+    const L = lines[i], T = norm(L.t);
+    if(M.stop && M.stop.test(T)){ if(!(M.skip && M.skip.test(T))) {} break; }
+    if(M.header && M.header(T, st) === "skip"){ last = null; continue; }
+    const date = M.dateX ? readDate(wordsIn(L, M.dateX)) : null;
+    const money = readMoney(wordsIn(L, M.valueX));
+    if(money){
+      if(date) st.date = date;
+      if(M.skip && M.skip.test(T)){ last = null; continue; }
+      const d = date || ((M.carryDate || !M.dateX) ? st.date : null);
+      if(!d){ last = null; continue; }
+      let n = money.n;
+      if(M.signFrom === "state") n = Math.abs(n) * st.sign;
+      if(M.signFrom === "tipo") n = /D[ée]bito/i.test(wordsIn(L, M.tipoX)) ? -Math.abs(n) : Math.abs(n);
+      last = {L, i, date: d, valor: n, extra: []};
+      anchors.push(last);
+      continue;
+    }
+    if(date && M.carryDate) st.date = date;
+    if(M.skip && M.skip.test(T)) continue;
+    if(M.cont !== "none" && M.contX && startsAt(L, M.contX)) conts.push({L, i, prev: last});
+  }
+  // liga cada linha complementar ao lançamento certo
+  for(const c of conts){
+    let target = null;
+    if(M.cont === "below") target = c.prev;
+    else if(M.cont === "around"){
+      // o lançamento mais próximo na mesma página
+      let best = Infinity;
+      for(const a of anchors){
+        if(a.L.p !== c.L.p) continue;
+        const dy = Math.abs(a.L.y - c.L.y);
+        if(dy < best){ best = dy; target = a; }
+      }
+      const near = M.near || c.L.fs * 2.2;
+      if(best > near){
+        // longe de tudo: é um pedaço que ficou sozinho na virada de página
+        const samePage = anchors.filter(a => a.L.p === c.L.p);
+        const below = samePage.some(a => a.L.y < c.L.y), above = samePage.some(a => a.L.y > c.L.y);
+        if(!below) target = anchors.find(a => a.L.p > c.L.p) || null;                 // fim da página: vai para o 1º da próxima
+        else if(!above) target = [...anchors].reverse().find(a => a.L.p < c.L.p) || null; // início da página: vai para o último da anterior
+        else if(best > (M.maxDist || 40)) target = null;
+      }
+      if(typeof __dbg === "function") __dbg(best, c.L, target);
+    }
+    if(target) target.extra.push(c.L);
+  }
+  // monta o histórico: coluna por coluna, de cima para baixo
+  return anchors.map(a => {
+    const pieces = [];
+    for(const [ci, r] of M.histCols.entries()){
+      for(const L of [a.L, ...a.extra]){
+        const ps = partsIn(L, r);
+        if(ps.length) pieces.push({ci, y: L.y, p: L.p, t: joinParts(ps)});
+      }
+    }
+    pieces.sort((x, y) => x.ci - y.ci || x.p - y.p || y.y - x.y);
+    let hist = norm(pieces.map(p => p.t).join(" "));
+    if(M.clean) hist = M.clean(hist);
+    hist = hist.replace(/\s{2,}/g, " ").trim();
+    return {d: a.date.d, m: a.date.m, y: a.date.y, valor: Math.round(a.valor * 100) / 100, hist};
+  });
+}
+
+function parseGeneric(){
   const yearDefault = parseInt($("year").value,10) || new Date().getFullYear();
   const pickLast = $("pick").value === "last";
   const skipSaldo = $("skipSaldo").checked, carry = $("carryDate").checked, join = $("joinCont").checked;
@@ -443,13 +664,30 @@ function parse(){
     lastRow = {d:useDate.d, m:useDate.m, y:useDate.y, valor, hist};
     out.push(lastRow);
   }
-  rows = out;
-  render();
-  if(rows.length) setMsg(`Pronto! ${rows.length} lançamentos encontrados. Confira a prévia e baixe o Excel.`, "ok");
-  else setMsg("Não encontrei lançamentos. Abra \"Ajustes da conversão\" ou veja o texto lido do PDF.", "err");
+  return out;
 }
 
-["sign","skipSaldo","carryDate","joinCont","pick"].forEach(id => $(id).addEventListener("change", () => { isSample ? render() : parse(); }));
+// escolhe o modelo (automático ou o que a pessoa marcou) e converte
+let modelo = "";
+function parse(){
+  const sel = $("banco").value;
+  const auto = sel === "auto";
+  const M = auto ? detectModel(lines) : MODELOS.find(m => m.id === sel) || null;
+  let out = M ? runModel(M, lines) : null;
+  if(M && out && out.length){
+    modelo = M.nome + (auto ? " · identificado automaticamente" : "");
+  } else {
+    out = parseGeneric();
+    modelo = (M && !auto) ? `Genérico · o modelo ${M.nome} não reconheceu este PDF` : "Genérico · banco não reconhecido";
+  }
+  rows = out;
+  render();
+  if(rows.length) setMsg(`Pronto! ${rows.length} lançamentos encontrados (${modelo}). Confira a prévia e baixe o Excel.`, "ok");
+  else setMsg("Não encontrei lançamentos. Tente escolher o banco na lista ou veja o texto lido do PDF.", "err");
+}
+
+["sign","skipSaldo","carryDate","joinCont","pick","banco"].forEach(id => $(id).addEventListener("change", () => { isSample ? render() : parse(); }));
+MODELOS.forEach(M => { const o = document.createElement("option"); o.value = M.id; o.textContent = M.nome; $("banco").insertBefore(o, $("banco").lastElementChild); });
 $("year").addEventListener("change", () => { if(!isSample) parse(); });
 
 const fmt = n => n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -460,6 +698,8 @@ function render(){
   const tb = $("tbody");
   tb.textContent = "";
   $("sampleTag").hidden = !isSample;
+  $("modeloInfo").hidden = isSample || !modelo;
+  $("modeloNome").textContent = modelo;
   $("hint").textContent = isSample ? "Isto é um exemplo. Envie um extrato para ver os seus lançamentos aqui." : "Clique numa célula para corrigir. Use o × para apagar uma linha.";
   if(!rows.length){
     const tr = document.createElement("tr"), td = document.createElement("td");
